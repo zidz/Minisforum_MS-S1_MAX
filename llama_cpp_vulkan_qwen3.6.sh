@@ -1,26 +1,13 @@
 #!/bin/bash
-#  -m /models/Qwen3.5-27B-GGUF/Qwen3.5-27B-UD-Q6_K_XL.gguf \
-#  --mmproj /models/Qwen3.5-27B-GGUF/mmproj-F16.gguf \
-#  --cache-type-k q4_0 \
-#  --cache-type-v q4_0 \
-#  --chat-template-kwargs '{"enable_thinking": false}' \
-#  --reasoning-budget 0 \
-#  --no-mmap \
-
-# models/bartowski/Qwen3.5-27B-GGUF/Qwen_Qwen3.5-27B-Q8_0.gguf models/bartowski/Qwen3.5-27B-GGUF/mmproj-Qwen_Qwen3.5-27B-bf16.gguf
-
-#  -m /models/Qwen3.5-WebAgent/Qwen3.5-9B-UD-Q4_K_XL.gguf \
-#  --mmproj /models/Qwen3.5-WebAgent/mmproj-F16.gguf \
-
 # Säkerställ att sökvägen till modellerna är absolut
 MODEL_DIR="$(pwd)/models"
 # Dynamisk hämtning av det numeriska ID:t för render-gruppen för Vulkan IPC
 RENDER_GID=$(getent group render | cut -d: -f3)
 echo "Startar llama.cpp-servern i Docker med Vulkan-stöd..."
 
-docker rm -f llama-server-qwen-chat-vulkan 2>/dev/null
+docker rm -f llama-server-qwen-first-vulkan 2>/dev/null
 docker run -d \
-  --name llama-server-qwen-chat-vulkan \
+  --name llama-server-qwen-first-vulkan \
   --restart unless-stopped \
   --device=/dev/dri \
   --group-add video \
@@ -31,8 +18,8 @@ docker run -d \
   -p 8080:8080 \
   -v ${MODEL_DIR}:/models \
   ghcr.io/ggml-org/llama.cpp:server-vulkan \
-  -m /models/bartowski/Qwen3.5-27B-GGUF/Qwen_Qwen3.5-27B-Q6_K_L.gguf \
-  --mmproj /models/bartowski/Qwen3.5-27B-GGUF/mmproj-Qwen_Qwen3.5-27B-bf16.gguf \
+  -m /models/Qwen3.6-27B-GGUF/Qwen3.6-27B-UD-Q4_K_XL.gguf \
+  --mmproj /models/Qwen3.6-27B-GGUF/mmproj-BF16.gguf \
   --host 0.0.0.0 \
   --port 8080 \
   -c 262144 \
@@ -40,18 +27,20 @@ docker run -d \
   -ngl 999 \
   --threads 16 \
   --threads-batch 16 \
-  --cache-type-k q4_0 \
-  --cache-type-v q4_0 \
+  --cache-type-k q8_0 \
+  --cache-type-v q8_0 \
   --flash-attn on \
   --temperature 0.6 \
   --top-p 0.95 \
   --top-k 20 \
   --min-p 0.00 \
+  --presence-penalty 0.0 \
+  --repeat_penalty 1.0 \
   --fit off \
   --jinja \
-  --alias "Qwen3.5-27B"
+  --alias "qwen3.6-first"
 
-echo "Servern startas i bakgrunden. Använd 'docker logs -f llama-server-qwen-chat-vulkan' för att se laddningsprocessen."
+echo "Servern startas i bakgrunden. Använd 'docker logs -f llama-server-qwen-first-vulkan' för att se laddningsprocessen."
 docker rm -f llama-server-qwen-embed-vulkan 2>/dev/null
 
 docker run -d \
@@ -71,8 +60,8 @@ docker run -d \
   --port 8081 \
   -c 32768 \
   -np 1 \
-  --cache-type-k q4_0 \
-  --cache-type-v q4_0 \
+  --cache-type-k q8_0 \
+  --cache-type-v q8_0 \
   -ngl 999 \
   --threads 8 \
   --threads-batch 8 \
@@ -85,9 +74,10 @@ docker run -d \
   --alias "Qwen3-Embedding-8B"
 
 echo "[✓] Inbäddnings-server orkestrerad på port 8081."
-docker rm -f llama-server-qwen-9b-vulkan 2>/dev/null
+echo "Servern startas i bakgrunden. Använd 'docker logs -f llama-server-qwen-embed-vulkan' för att se laddningsprocessen."
+docker rm -f llama-server-qwen-second-vulkan 2>/dev/null
 docker run -d \
-  --name llama-server-qwen-9b-vulkan \
+  --name llama-server-qwen-second-vulkan \
   --restart unless-stopped \
   --device=/dev/dri \
   --group-add video \
@@ -98,17 +88,18 @@ docker run -d \
   -p 8082:8082 \
   -v "${MODEL_DIR}:/models" \
   ghcr.io/ggml-org/llama.cpp:server-vulkan \
-  -m /models/unsloth/Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q6_K_XL.gguf \
+  -m /models/unsloth/Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf \
   --mmproj /models/unsloth/Qwen3.6-35B-A3B-GGUF/mmproj-BF16.gguf \
   --host 0.0.0.0 \
   --port 8082 \
-  -c 32768 \
+  -c 262144 \
   -np 1 \
-  --cache-type-k q4_0 \
-  --cache-type-v q4_0 \
+  --cache-type-k q8_0 \
+  --cache-type-v q8_0 \
   -ngl 999 \
   --threads 4 \
   --threads-batch 4 \
   --flash-attn on \
-  --alias "qwen3.5-9b"
+  --alias "qwen3.6-second"
 echo "[✓] chat-9b-server orkestrerad på port 8082."
+echo "Servern startas i bakgrunden. Använd 'docker logs -f llama-server-qwen-second-vulkan' för att se laddningsprocessen."

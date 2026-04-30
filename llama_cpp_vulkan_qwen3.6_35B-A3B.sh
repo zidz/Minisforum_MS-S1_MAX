@@ -7,10 +7,8 @@
 #  --reasoning-budget 0 \
 #  --no-mmap \
 
-# models/bartowski/Qwen3.5-27B-GGUF/Qwen_Qwen3.5-27B-Q8_0.gguf models/bartowski/Qwen3.5-27B-GGUF/mmproj-Qwen_Qwen3.5-27B-bf16.gguf
-
-#  -m /models/Qwen3.5-WebAgent/Qwen3.5-9B-UD-Q4_K_XL.gguf \
-#  --mmproj /models/Qwen3.5-WebAgent/mmproj-F16.gguf \
+#/models/unsloth/Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q6_K_XL.gguf
+#/models/unsloth/Qwen3.6-35B-A3B-GGUF/mmproj-BF16.gguf
 
 # Säkerställ att sökvägen till modellerna är absolut
 MODEL_DIR="$(pwd)/models"
@@ -31,8 +29,8 @@ docker run -d \
   -p 8080:8080 \
   -v ${MODEL_DIR}:/models \
   ghcr.io/ggml-org/llama.cpp:server-vulkan \
-  -m /models/bartowski/Qwen3.5-27B-GGUF/Qwen_Qwen3.5-27B-Q6_K_L.gguf \
-  --mmproj /models/bartowski/Qwen3.5-27B-GGUF/mmproj-Qwen_Qwen3.5-27B-bf16.gguf \
+  -m /models/unsloth/Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q6_K_XL.gguf \
+  --mmproj /models/unsloth/Qwen3.6-35B-A3B-GGUF/mmproj-BF16.gguf \
   --host 0.0.0.0 \
   --port 8080 \
   -c 262144 \
@@ -40,9 +38,9 @@ docker run -d \
   -ngl 999 \
   --threads 16 \
   --threads-batch 16 \
-  --cache-type-k q4_0 \
-  --cache-type-v q4_0 \
   --flash-attn on \
+  --presence_penalty 0.0 \
+  --repeat_penalty 1.0 \
   --temperature 0.6 \
   --top-p 0.95 \
   --top-k 20 \
@@ -98,8 +96,8 @@ docker run -d \
   -p 8082:8082 \
   -v "${MODEL_DIR}:/models" \
   ghcr.io/ggml-org/llama.cpp:server-vulkan \
-  -m /models/unsloth/Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q6_K_XL.gguf \
-  --mmproj /models/unsloth/Qwen3.6-35B-A3B-GGUF/mmproj-BF16.gguf \
+  -m /models/Qwen3.5-WebAgent/Qwen3.5-9B-UD-Q4_K_XL.gguf \
+  --mmproj /models/Qwen3.5-WebAgent/mmproj-F16.gguf \
   --host 0.0.0.0 \
   --port 8082 \
   -c 32768 \
