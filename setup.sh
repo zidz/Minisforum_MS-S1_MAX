@@ -4,10 +4,9 @@
 MODEL_DIR="./models"
 mkdir -p $MODEL_DIR
 
-echo "Hämtar Qwen3.5-122B-A10B-UD-Q4_K_XL (splittade filer)..."
 # Laddar ner alla GGUF-delar från den specifika undermappen
 hf download unsloth/Qwen3.5-122B-A10B-GGUF \
-  --include "UD-Q4_K_XL/*" \
+  --include "UD-Q6_K_XL/*" \
   --local-dir $MODEL_DIR
 
 echo "Hämtar mmproj-F16.gguf för multimodal vision-kapacitet..."
@@ -41,6 +40,11 @@ hf download unsloth/Qwen3.6-27B-GGUF \
   --include "*Qwen3.6-27B-UD-Q4_K_XL*" \
   --local-dir ${MODEL_DIR}/Qwen3.6-27B-GGUF
 
+echo "Hämtar Qwen3.6-27B BF16"
+hf download unsloth/Qwen3.6-27B-GGUF \
+  --include "*Qwen3.6-27B-BF16*" \
+  --local-dir ${MODEL_DIR}/Qwen3.6-27B-GGUF
+
 hf download unsloth/Qwen3.6-27B-GGUF \
   --include "mmproj-BF16.gguf" \
   --local-dir ${MODEL_DIR}/Qwen3.6-27B-GGUF
@@ -58,6 +62,10 @@ hf download bartowski/Qwen_Qwen3.5-2B-GGUF \
 mkdir -p ${MODEL_DIR}/unsloth/Qwen3.6-35B-A3B-GGUF
 
 hf download unsloth/Qwen3.6-35B-A3B-GGUF \
+  --include "Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf" \
+  --local-dir ${MODEL_DIR}/unsloth/Qwen3.6-35B-A3B-GGUF
+
+hf download unsloth/Qwen3.6-35B-A3B-GGUF \
   --include "Qwen3.6-35B-A3B-UD-Q6_K_XL.gguf" \
   --local-dir ${MODEL_DIR}/unsloth/Qwen3.6-35B-A3B-GGUF
 
@@ -65,9 +73,21 @@ hf download unsloth/Qwen3.6-35B-A3B-GGUF \
   --include "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf" \
   --local-dir ${MODEL_DIR}/unsloth/Qwen3.6-35B-A3B-GGUF
 
-hf download unsloth/Qwen3.6-35B-A3B-GGUF \
+hf download unsloth/Qwen3.6-27B-MTP-GGUF \
+  --include "Qwen3.6-27B-UD-Q8_K_XL.gguf" \
+  --local-dir ${MODEL_DIR}/unsloth/Qwen3.6-27B-MTP-GGUF
+
+hf download unsloth/gemma-4-31B-it-qat-GGUF \
   --include "mmproj-BF16.gguf" \
-  --local-dir ${MODEL_DIR}/unsloth/Qwen3.6-35B-A3B-GGUF
+  --local-dir ${MODEL_DIR}/unsloth/gemma-4-31B-it-qat-GGUF
+
+hf download unsloth/gemma-4-31B-it-qat-GGUF \
+  --include "gemma-4-31B-it-qat-UD-Q4_K_XL.gguf" \
+  --local-dir ${MODEL_DIR}/unsloth/gemma-4-31B-it-qat-GGUF
+
+hf download unsloth/embeddinggemma-300m-GGUF \
+  --include "embeddinggemma-300M-Q8_0.gguf" \
+  --local-dir ${MODEL_DIR}/unsloth/embeddinggemma-300m-GGUF
 
 hf download  Qwen/Qwen3-Embedding-0.6B-GGUF --include "Qwen3-Embedding-0.6B-f16.gguf" --local-dir $MODEL_DIR
 

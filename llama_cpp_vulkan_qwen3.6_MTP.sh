@@ -6,14 +6,13 @@ RENDER_GID=$(getent group render | cut -d: -f3)
 #  --chat-template-kwargs '{"enable_thinking":false}' \
 #  -c 262144 \
 #  --reasoning-budget -1 \
-#  --restart unless-stopped \
-#  --fit off \
-#  --chat-template-kwargs '{"preserve_thinking": true}' \
+#  --mmproj /models/Qwen3.6-27B-GGUF/mmproj-BF16.gguf \
 echo "Startar llama.cpp-servern i Docker med Vulkan-stöd..."
 
 docker rm -f llama-server-qwen-first-vulkan 2>/dev/null
 docker run -d \
   --name llama-server-qwen-first-vulkan \
+  --restart unless-stopped \
   --device=/dev/dri \
   --device=/dev/kfd \
   --group-add video \
@@ -27,22 +26,21 @@ docker run -d \
   -p 8080:8080 \
   -v ${MODEL_DIR}:/models \
   ghcr.io/ggml-org/llama.cpp:server-vulkan \
-  -m /models/Qwen3.6-27B-GGUF/Qwen3.6-27B-UD-Q8_K_XL.gguf \
-  --mmproj /models/Qwen3.6-27B-GGUF/mmproj-BF16.gguf \
-  --no-mmap \
+  -m /models/unsloth/Qwen3.6-27B-MTP-GGUF/Qwen3.6-27B-UD-Q8_K_XL.gguf \
   --host 0.0.0.0 \
   --port 8080 \
   -c 262144 \
   -np 1 \
   -ngl 999 \
+  --chat-template-kwargs '{"preserve_thinking": true}' \
   --cache-type-k q8_0 \
   --cache-type-v q8_0 \
   --threads 8 \
   --threads-batch 8 \
   --flash-attn on \
-  --reasoning off \
-  --reasoning-budget 0 \
-  --chat-template-kwargs '{"enable_thinking": false}' \
+  --fit off \
+  --spec-type draft-mtp --spec-draft-n-max 3 --spec-draft-p-min 0.75 \
+  --dry-multiplier 1.0 --dry-base 1.75 --dry-allowed-length 3 \
   --jinja
 echo "[✓] Qwen first LLM orkestrerad på port 8080."
 echo "Servern startas i bakgrunden. Använd 'docker logs -f llama-server-qwen-first-vulkan' för att se laddningsprocessen."
