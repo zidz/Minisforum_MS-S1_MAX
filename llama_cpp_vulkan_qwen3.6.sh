@@ -8,10 +8,17 @@ RENDER_GID=$(getent group render | cut -d: -f3)
 #  --reasoning-budget -1 \
 #  --restart unless-stopped \
 #  --fit off \
-#  --chat-template-kwargs '{"preserve_thinking": true}' \
+#  --cache-type-k q8_0 \
+#  --cache-type-v q8_0 \
+#  --threads 8 \
+#  --no-mmap \
+#  --reasoning off \
+#  --reasoning-budget 0 \
+#  --chat-template-kwargs '{"enable_thinking": false}' \	
 echo "Startar llama.cpp-servern i Docker med Vulkan-stöd..."
 
 docker rm -f llama-server-qwen-first-vulkan 2>/dev/null
+docker rm -f llama-server-qwen-second-vulkan 2>/dev/null
 docker run -d \
   --name llama-server-qwen-first-vulkan \
   --device=/dev/dri \
@@ -29,20 +36,13 @@ docker run -d \
   ghcr.io/ggml-org/llama.cpp:server-vulkan \
   -m /models/Qwen3.6-27B-GGUF/Qwen3.6-27B-UD-Q8_K_XL.gguf \
   --mmproj /models/Qwen3.6-27B-GGUF/mmproj-BF16.gguf \
-  --no-mmap \
   --host 0.0.0.0 \
   --port 8080 \
-  -c 262144 \
-  -np 1 \
-  -ngl 999 \
+  -np 2 \
+  --flash-attn on \
   --cache-type-k q8_0 \
   --cache-type-v q8_0 \
-  --threads 8 \
-  --threads-batch 8 \
-  --flash-attn on \
-  --reasoning off \
-  --reasoning-budget 0 \
-  --chat-template-kwargs '{"enable_thinking": false}' \
+  --chat-template-kwargs '{"preserve_thinking": true}' \
   --jinja
 echo "[✓] Qwen first LLM orkestrerad på port 8080."
 echo "Servern startas i bakgrunden. Använd 'docker logs -f llama-server-qwen-first-vulkan' för att se laddningsprocessen."
@@ -76,12 +76,11 @@ docker run -d \
   -ub 8192 \
   --pooling last
 
-#echo "[✓] Inbäddnings-server orkestrerad på port 8081."
-#echo "Servern startas i bakgrunden. Använd 'docker logs -f llama-server-qwen-embed-vulkan' för att se laddningsprocessen."
-#docker rm -f llama-server-qwen-second-vulkan 2>/dev/null
+echo "[✓] Inbäddnings-server orkestrerad på port 8081."
+echo "Servern startas i bakgrunden. Använd 'docker logs -f llama-server-qwen-embed-vulkan' för att se laddningsprocessen."
 #docker run -d \
-#  --name llama-server-qwen-second-vulkan \
-#  --restart unless-stopped \
+ # --name llama-server-qwen-second-vulkan \
+ # --restart unless-stopped \
 #  --device=/dev/dri \
 #  --group-add video \
 #  --device=/dev/kfd \
@@ -97,22 +96,19 @@ docker run -d \
 #  ghcr.io/ggml-org/llama.cpp:server-vulkan \
 #  -m /models/unsloth/Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf \
 #  --mmproj /models/unsloth/Qwen3.6-35B-A3B-GGUF/mmproj-BF16.gguf \
+#  --no-mmap \
 #  --host 0.0.0.0 \
 #  --port 8082 \
-#  -c 262144 \
+#  -c 124000 \
 #  -np 1 \
 #  -ngl 999 \
-#  --threads 16 \
-#  --threads-batch 16 \
-#  --chat-template-kwargs '{"preserve_thinking": true}' \
-#  --temperature 0.6 \
-#  --top-p 0.9 \
-#  --top-k 20 \
-#  --min-p 0.10 \
- # --presence-penalty 1.5 \
- # --repeat-penalty 1.0 \
- # --cache-type-k q5_0 \
- # --cache-type-v q5_0 \
-#  --flash-attn on
+#  --threads 8 \
+#  --threads-batch 8 \
+#  --flash-attn on \
+#  --reasoning off \
+#  --reasoning-budget 0 \
+#  --chat-template-kwargs '{"enable_thinking": false}' \
+#  --jinja
+ 
 #echo "[✓] Qwen second LLM orkestrerad på port 8082."
 #echo "Servern startas i bakgrunden. Använd 'docker logs -f llama-server-qwen-second-vulkan' för att se laddningsprocessen."
