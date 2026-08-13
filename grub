@@ -8,7 +8,11 @@ GRUB_TIMEOUT_STYLE=hidden
 GRUB_TIMEOUT=0
 GRUB_DISTRIBUTOR=`( . /etc/os-release; echo ${NAME:-Ubuntu} ) 2>/dev/null || echo Ubuntu`
 #GRUB_CMDLINE_LINUX_DEFAULT="console=tty0 amd_iommu=on iommu=pt ttm.pages_limit=27648000 ttm.page_pool_size=27648000 amdttm.pages_limit=27648000 amdttm.page_pool_size=27648000"
-GRUB_CMDLINE_LINUX_DEFAULT="console=tty0 amd_iommu=on iommu=pt ttm.pages_limit=31457280 ttm.page_pool_size=31457280 amdttm.pages_limit=31457280 amdttm.page_pool_size=31457280"
+#GRUB_CMDLINE_LINUX_DEFAULT="console=tty0 amd_iommu=on iommu=pt ttm.pages_limit=31457280 ttm.page_pool_size=31457280 amdttm.pages_limit=31457280 amdttm.page_pool_size=31457280"
+#GRUB_CMDLINE_LINUX_DEFAULT="console=tty0 ttm.pages_limit=31457280 ttm.page_pool_size=31457280 amdttm.pages_limit=31457280 amdttm.page_pool_size=31457280 amdgpu.cwsr_enable=0 amd_iommu=off amdgpu.mcbp=0 amdgpu.queue_preemption_timeout_ms=1"
+#GRUB_CMDLINE_LINUX_DEFAULT="console=tty0 quiet splash amd_iommu=off amdgpu.gttsize=126976 ttm.pages_limit=32505856 amdttm.page_pool_size=32505856"
+GRUB_CMDLINE_LINUX_DEFAULT="console=tty0 quiet splash amd_iommu=off ttm.pages_limit=33554432 ttm.page_pool_size=33554432 amdgpu.lockup_timeout=60000"
+
 GRUB_CMDLINE_LINUX=""
 
 # If your computer has multiple operating systems installed, then you

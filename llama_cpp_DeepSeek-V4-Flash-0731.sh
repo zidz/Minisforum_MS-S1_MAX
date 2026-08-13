@@ -7,10 +7,10 @@
 #  --spec-draft-n-max 3 \
 
 # If device lost due to big context
-# sudo sh -c 'echo 60000 > /sys/module/amdgpu/parameters/lockup_timeout'
 # And maybe
 # -b 2048 -ub 256
 
+sudo sh -c 'echo 60000 > /sys/module/amdgpu/parameters/lockup_timeout'
 MODEL_DIR="$(pwd)/models"
 RENDER_GID=$(getent group render | cut -d: -f3)
 
