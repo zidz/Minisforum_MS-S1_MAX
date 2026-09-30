@@ -1,0 +1,1 @@
+llama_cpp_vulkan_qwen3.8_27b.sh

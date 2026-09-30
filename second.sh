@@ -1,0 +1,1 @@
+llama_cpp_vulkan_qwen3.6.sh

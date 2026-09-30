@@ -1,1 +1,6 @@
 models
+models_old/
+vulkan_sdk/
+
+# third-party checkout with its own upstream (github.com/JustVugg/colibri)
+colibri/
