@@ -810,3 +810,99 @@ Remaining ideas, if a0's context is ever raised again or another model is added:
 - `HALOGEN_MAX_TOK` 16384 → 12288: ~2.8 GiB, ~5% prefill
 - `HALOGEN_PROMPT_CACHE=0`: ~1.3 GiB, hurts agent repeat-prefix prefill
 - embed container to `-c 4096`: another ~0.3 GiB
+
+---
+
+## Phase 7 log — OpenCode config brought in line (2026-09-30)
+
+### The WAN endpoint is retired
+
+`llama-wan` (`http://194.68.41.14:8880/v1`) is gone from `opencode.json`; the
+endpoint won't be reachable anymore. Nine messages in the session history were
+sent through it, so resuming one of those old sessions may render a provider
+that no longer exists. Nothing else referenced the id — no script, no doc.
+
+### A stale default that silently disabled the limits
+
+Worth writing down because it looked like it was working:
+
+```json
+"model": "llama/qwen3.6"
+```
+
+`qwen3.6` was not declared anywhere in the file — the model key had been renamed
+to `qwen3.8` and the default was never updated. Requests still *succeeded*,
+because halogen serves one model and ignores the requested name, so the wrong id
+never produced an error. The damage was invisible: with no declaration, the
+`limit` block never applied, so OpenCode ran without a context or output ceiling
+and guessed at compaction thresholds.
+
+Message history shows the cost:
+
+```
+qwen3.6    1134 messages   <- undeclared, no limits
+qwen3.8      51 messages   <- picked by hand
+```
+
+Fixed to `llama/qwen3.8`.
+
+### Model key vs served id
+
+The docs are explicit that a custom provider's model key *"must match the id
+returned by `GET /v1/models`"*. Ours was `qwen3.8`; the server reports
+`Qwen3.8-Flash-Next`. It worked only by the same single-model accident above.
+Rather than give up the short key, the block now carries both:
+
+```jsonc
+"qwen3.8": {
+  "id": "Qwen3.8-Flash-Next",
+  "name": "Qwen 3.8 Flash Next",
+  "tool_call": true,
+  "reasoning": true,
+  "attachment": true,
+  "modalities": { "input": ["text", "image"], "output": ["text"] },
+  "limit": { "context": 120000, "output": 65536 }
+}
+```
+
+`modalities` is the point of the exercise: Phase 6 turned the vision tower on
+and verified it end to end, but the config still described a text-only model, so
+OpenCode had no idea it could accept images.
+
+### What was deliberately not changed
+
+- **`context: 120000`.** The pool is 196608 and `output` is 65536, so
+  120000 + 65536 = 185536 leaves the pool able to serve a second slot. Raising
+  it past ~131k would put a max-length completion into contention with the pool,
+  and this machine has already demonstrated how expensive an over-budget guess
+  is.
+- **`toolParser`.** It is a llama.cpp leftover — halogen converts its native
+  `qwen-xml` wire format into standard OpenAI `tool_calls` on its own, verified
+  live (`finish_reason: tool_calls`, well-formed `arguments`). It is dead weight,
+  but removing it changes the tool path that everything else depends on, so it
+  waits until after the image path is confirmed.
+
+### Verified against the live server
+
+| Config value | Server reports | |
+|---|---|---|
+| `id: Qwen3.8-Flash-Next` | `/v1/models` id, and a request with it returns normally | ok |
+| `output: 65536` | `max_tokens_cap: 65536` | exact |
+| `context: 120000` | `max_model_len: 196608` | fits |
+| `tool_call: true` | `tool_calls` returned, standard shape | ok |
+| `modalities.input: image` | `vision.enabled: true` | ok |
+
+### Not yet verified
+
+Restarting opencode is what loads the new default, and that cannot be done from
+inside the session it would restart. So two things are still open:
+
+1. That a fresh session actually starts on `llama/qwen3.8`.
+2. **That images survive the trip.** `/health` is blunt — *"http(s) URLs are
+   refused"*, only `data:` URLs or bare base64. If OpenCode sends a URL rather
+   than base64, `attachment` + `modalities` convert a working text setup into 400s
+   on image requests. The fallback is to drop those two keys and keep the
+   correctness fixes, which stand on their own.
+
+`opencode.json` is not under version control; `opencode.json.bak` holds the
+pre-Phase-7 file.
