@@ -1,5 +1,5 @@
 #!/bin/bash
-# halogen-flash-server 0.15.0 — Qwen3.8-Flash-Next UD-Q4_K_XL på port 8080
+# halogen-flash-server 0.16.0 — Qwen3.8-Flash-Next UD-Q4_K_XL på port 8080
 #
 # Ersätter llama.cpp/Vulkan-servern med Qwen3.8-27B. ROCm/HIP-motorn kör på
 # amdgpu/KFD-stacken, inte Vulkan — därför är --device=/dev/kfd obligatoriskt
@@ -12,7 +12,7 @@
 #   pool 262144         7,2 GiB
 #   working mem @16384 11,2 GiB
 #   ------------------------------------
-#   halogen tar        ~98 GiB, ~9,6 GiB lämnas till allt annat vid start
+#   halogen tar        ~98 GiB, ~7,8 GiB lämnas till allt annat vid start
 #   (buff/cache som blir över är lookup-tablens page cache — motorn läser
 #    26,8 GiB-tabben därifrån, så den är INTE "ledigt minne")
 #
@@ -23,9 +23,16 @@
 # HALOGEN_CTX + HALOGEN_KV_POOL_POSITIONS är båda 262144, modellens fulla
 # fönster. Motorn kräver att poolen är minst lika stor som kontextfönstret
 # ("--kv-pool 196608: at least --ctx 262144") — de måste flyttas tillsammans.
-# HALOGEN_MAX_TOKENS_CAP=131072 höjer output-taket; det kostar inget i RAM
-# men ett request reserverar prompt + max_tokens ur poolen, så
-# opencode-hyvlet 120000 + 131072 = 251072 ryms precis i 262144.
+# 262144 var det som headeren alltid påstod, men 0.15.0 kunde inte starta
+# med det: 0.15.1-fixen satt working memory ~8 GiB för högt vid startens
+# fit-kontroll. På 0.16.0 går det rent (7,2 GiB pool, 98,8 GiB totalt).
+# Observerad kostnad: 262144 lämnar 7,8 GiB hostminne mot 9,4 GiB på
+# 196608 — precis under motorns ~10 GiB-varning för lookup-tablens
+# page cache. Mätt på 6000-tokens prefill: 1269 t/s @262144 mot
+# 1319 t/s @196608 (~4% långsammare). Vinsten är att poolen inte längre
+# trycks till 100% och att svar inte klipps ("max_tokens clamped").
+# max_tokens_cap lämnas på image-default 65536 (opencodes output-tak är
+# också 65536, så capen är aldrig flaskhalsen — det var poolen det).
 #
 # Alternativ som är avsiktligt AVstängda:
 #  -e HALOGEN_FLASH_PIN_TRUNK=0 \
@@ -74,7 +81,7 @@ VISION_FILE="${MODEL_DIR}/unsloth/Qwen3.8-Flash-Next-GGUF/UD-Q4_K_XL/qwen38-flas
 if [ ! -f "${VISION_FILE}" ]; then
   echo "[*] Vision-sideload saknas, laddar ner 0,84 GiB..."
   docker run --rm -e HF_HUB_OFFLINE=0 -v "${MODEL_DIR}:/models" --entrypoint hf \
-    ghcr.io/peonist-ai/halogen-flash-server:0.15.0 \
+    ghcr.io/peonist-ai/halogen-flash-server:0.16.0 \
     download peonist-ai/halogen-qwen3.8-flash-next qwen38-flash-next-vision.hgn \
     --local-dir /models/unsloth/Qwen3.8-Flash-Next-GGUF/UD-Q4_K_XL
 fi
@@ -121,14 +128,14 @@ docker run -d \
   -e HALOGEN_API_PORT=8080 \
   -e HALOGEN_DOWNLOAD=peonist-ai/halogen-qwen3.8-flash-next \
   -e HALOGEN_CHECKPOINT=/models/unsloth/Qwen3.8-Flash-Next-GGUF/UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf \
-  -e HALOGEN_CTX=196608 \
-  -e HALOGEN_KV_POOL_POSITIONS=196608 \
+  -e HALOGEN_CTX=262144 \
+  -e HALOGEN_KV_POOL_POSITIONS=262144 \
   -e HALOGEN_KV_SLOTS=2 \
   -e HALOGEN_MAX_TOK=16384 \
   -e HALOGEN_HOST_RESERVE_GIB=16 \
   -e HALOGEN_VISION_TOWER=1 \
   -e HALOGEN_MODEL_ID=Qwen3.8-Flash-Next \
-  ghcr.io/peonist-ai/halogen-flash-server:0.15.0
+  ghcr.io/peonist-ai/halogen-flash-server:0.16.0
 
 # 6. Embedding-modellen på 8081 ska ALDRIG skapas om när den redan är uppe —
 #    Agent Zero (a0) är beroende av den. Körs bara om containern saknas.
@@ -184,7 +191,8 @@ echo "Följ uppstarten med:"
 echo "  docker logs -f halogen-flash-server"
 echo ""
 echo "Läs efter dessa raderna i loggen:"
-echo "  host memory left for everything else   -> ska vara >= 10 GiB"
+echo "  host memory left for everything else   -> ska vara >= 7,5 GiB (var ~7,8 med pool 262144)"
+echo "  262144-position KV pool                 -> ska stå i startup-raden (7,2 GiB)"
 echo "  checkpoint_format                      -> ska vara gguf"
 echo "  vision tower ...                        -> ska stå utan fel"
 echo "  WARNING .* no process holds the GPU    -> LEAKAD GTT, starta om burken"
