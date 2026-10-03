@@ -906,3 +906,72 @@ inside the session it would restart. So two things are still open:
 
 `opencode.json` is not under version control; `opencode.json.bak` holds the
 pre-Phase-7 file.
+
+## Phase 8 log — 0.16.0, and the 262144 pool finally fits (2026-10-03)
+
+### The upgrade
+
+`ghcr.io/peonist-ai/halogen-flash-server` `0.15.0 -> 0.16.0`, both the main run
+and the vision-download reference. `/health` reports `api 0.16.0 / engine 0.16.0,
+match: true`.
+
+### The pool finally reaches the model's full window
+
+Phase 5 tried 262144 and the engine refused; Phase 4/6 ran at 196608 as the
+compromise. On 0.16.0 it fits, because the 0.15.1 startup pool-fit fix stopped
+sizing working memory ~8 GiB too high at the fit check. `HALOGEN_CTX` and
+`HALOGEN_KV_POOL_POSITIONS` both `196608 -> 262144`:
+
+```
+memory: 80.4 GiB weights, 7.2 GiB KV pool, 11.2 GiB working, 98.8 GiB in all
+2 slots over ONE 262144-position KV pool, each request up to 262144
+```
+
+Staged the way Phase 5's crash-loop taught us: ran the new pool with
+`--restart no` first, confirmed it listened with no pin refusal, then restored
+`--restart unless-stopped` and re-ran. `restarts=0`.
+
+### What it cost, measured
+
+The pool bump is not free — it eats the host memory that the 26.8 GiB lookup
+table page-caches through:
+
+| | pool 196608 | pool 262144 |
+|---|---|---|
+| host memory left at start | 9.4 GiB | 7.8 GiB |
+| prefill, 6007-token prompt | 1319 t/s | 1269 t/s |
+| completion output | — | byte-identical |
+
+~4% slower prefill, and 7.8 GiB is just under the engine's ~10 GiB warning for
+the lookup-table cache. The payoff is the thing Phase 5/6 kept hitting: the pool
+no longer pins to 100% and answers stop getting truncated (`max_tokens clamped`).
+`max_tokens_cap` stays at the image default 65536.
+
+### OpenCode: context 120000 -> 131072
+
+Phase 7 deliberately held `context` at 120000 because with a 196608 pool,
+120000 + 65536 = 185536 left only ~11k of pool headroom, and ~131k was the
+ceiling before a max-length completion contended with the pool. The pool is now
+262144, so that same 131072 is no longer the ceiling — 131072 + 65536 = 196608
+leaves 65536 positions for the second slot. Raised to 131072; `output` stays
+65536 (the cap — higher is a 400). `toolParser`, `reasoning`, `attachment`,
+`modalities` and the `id` are untouched.
+
+### Verified against the live server
+
+| Config value | Server reports | |
+|---|---|---|
+| `id: Qwen3.8-Flash-Next` | `/health` model, request returns normally | ok |
+| `output: 65536` | `max_tokens_cap: 65536`; `max_tokens:65536` -> 200 | exact |
+| `context: 131072` | `context: 262144`, `kv_pool_positions: 262144` | fits, 65536 headroom |
+| `modalities.input: image` | `vision.enabled: true`; vision test -> `Blue` | ok |
+
+### Still open
+
+1. Restarting OpenCode loads the new `context: 131072` — cannot be done from
+   inside the session it would restart.
+2. The image round-trip is still unverified (unchanged from Phase 7): `/health`
+   refuses http(s) URLs, so it hinges on OpenCode sending base64, not a URL.
+
+`opencode.json` is not under version control. `halogen_flash_next.sh.bak` holds
+the pre-Phase-8 script.
