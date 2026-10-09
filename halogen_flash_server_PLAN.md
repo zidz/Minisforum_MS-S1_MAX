@@ -975,3 +975,96 @@ leaves 65536 positions for the second slot. Raised to 131072; `output` stays
 
 `opencode.json` is not under version control. `halogen_flash_next.sh.bak` holds
 the pre-Phase-8 script.
+
+## Phase 9 log — GLM/kyojin stand-in, same-day teardown (2026-10-09)
+
+GLM-5.3-Flash (kyojin/exllamav3) was trialled as an 8080 stand-in and removed
+the same day: the fit never had more than ~1-2 GiB of margin next to a global
+OOM, and the native halogen `v2.hgn` upgrade (Phase 10) made it pointless.
+
+Everything the trial installed is gone and was verified gone:
+
+| Removed | |
+|---|---|
+| `/home/zidz/kyojin` (venv + exllamav3 build + 93 GB EXL3 pack) | ~109 GB returned; `/` 466G -> 357G used |
+| `glm-serve.service`, `glm-watchdog.service` + `service.d` drop-in | deleted and disabled |
+| `glm_up.sh`, `glm_down.sh`, `start_glm.sh` | deleted |
+| GLM-5.2-era scripts in this repo | `llama_cpp_glm5.2.sh`, `colibri.sh` deleted, GLM download removed from `setup.sh` |
+
+`opencode.json` went back to the Qwen-only entry. A holdover from the trial —
+`context: 120000` (GLM's `-c`) — was raised past Phase 8's 131072 to the full
+window in Phase 10.
+
+One loose end from the trial: after teardown the halogen log still reported
+`14.4 GiB of GTT in use and no process holds the GPU`. This is a false alarm
+from inside the container, not a leak — embed (Vulkan/DRM) has no `kfd/proc`
+entry, and GTT accounting is normal (~32 GiB total = embed ~13 + halogen ~19).
+
+## Phase 10 log — 0.17.3 + native .hgn checkpoints, INDEXER_BUDGET (2026-10-09)
+
+The GGUF repack was replaced by halogen's own checkpoint format: image
+`0.16.0 -> 0.17.3`, mount is now `models/halogen-models:/models:ro`, and
+`HALOGEN_CHECKPOINT` is unset — `qwen38-flash-next-v2.hgn` is the 0.17.3
+default. The old GGUF dir is kept on disk as a fallback only.
+
+### Memory: GGUF era vs v2.hgn
+
+| | UD-Q4_K_XL GGUF (0.16) | v2.hgn (0.17.3) |
+|---|---|---|
+| weights resident (pinned) | 80.4 GiB (incl vision) | 62.9 GiB (62.11 + 0.84 vision) |
+| working mem @ MAX_TOK 16384 | 11.2 GiB | 8.2 GiB |
+| KV pool 262144 / 2 slots | 7.2 GiB | 7.2 GiB |
+| **total held** | 98.8 GiB | **78.3 GiB** |
+| **host memory left at start** | 9.3 GiB | **28.2 GiB** |
+| lookup table (never held, file cache) | 26.8 GiB | 47.7 GiB |
+
+~19.5 GiB of headroom opened up, and it is not idle — it is the page cache that
+keeps the 47.7 GiB n-gram table warm, which is where the measured prefill gain
+(~1269 -> ~1520 t/s) comes from. `free`/`MemAvailable` over-reports (~89 GiB)
+because pinned weights count as reclaimable file cache; the engine's
+"host memory left" line is the honest number.
+
+### The headroom was spent on INDEXER_BUDGET
+
+`-e HALOGEN_INDEXER_BUDGET=4096` (image default 2048). Per the README the 0.9.1
+sparse-attention budget recovers long-context facts the default missed at 16k,
+at ~7% prefill cost @32k; output is no longer byte-identical. Verified live:
+`/health` reports `indexer_budget: 4096`, host memory left 28.8 -> 28.2 GiB
+(the index holds ~0.6 GiB). Rejected: a third KV slot (pool pressure is
+eviction under long prompts, not a size limit), raising MAX_TOK (spends the
+working memory the cache needs), and the `ht43` checkpoint (~8 GiB cheaper but
+slower — not needed).
+
+### OpenCode: context to the full window
+
+`context: 120000` (GLM-era value) -> **262144**, the server's full window
+(`ctx` and `kv_pool_positions` are both 262144); `output` stays 65536. Beyond
+that the server clamps rather than errors. `id`, `toolParser`, `reasoning`,
+`attachment` and the image modality are untouched.
+
+### Script changes this phase
+
+`halogen_flash_next.sh`: comment overhaul (GGUF-era memory budget replaced by
+the v2.hgn one), the vision sidecar check now looks in `halogen-models/` — the
+directory actually mounted — instead of the GGUF dir invisible to the new
+mount, and the sampling params (`TEMPERATURE 1.0`, `TOP_P 0.95`, `TOP_K 20`,
+`MIN_P 0.0`, penalties) came with the upgrade.
+
+### Verified against the live server
+
+- `/health`: `status ok`, `indexer_budget: 4096`, `checkpoint_format: hgn`,
+  vision enabled, 2 slots, pool 262144
+- startup: pinned 62.11 GiB at 62.6 GB/s; "62.9 + 7.2 + 8.2 = 78.3 GiB in all;
+  host memory left for everything else: 28.2 GiB"
+- chat smoke test ok; prefill ~1520 t/s with warm table
+- embed container untouched throughout (never recreated, up continuously)
+
+### Still open
+
+1. The old GGUF dir (`unsloth/Qwen3.8-Flash-Next-GGUF`, ~106 GiB) is unused at
+   runtime; delete it if disk is ever wanted.
+2. `WARNING 17.9 GiB of host RAM in use before this server starts` (embed +
+   user services coming out of the lookup-table cache) is tolerated at
+   28.2 GiB left, but is the first thing to revisit if prefill ever slows.
+
+

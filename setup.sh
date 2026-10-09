@@ -106,10 +106,6 @@ hf download unsloth/Qwen3.8-27B-GGUF \
   --include "Qwen3.8-27B-UD-Q8_K_XL.gguf" \
   --local-dir ${MODEL_DIR}/unsloth/Qwen3.8-27B-GGUF
 
-hf download unsloth/GLM-5.2-GGUF \
-  --include "*UD-Q5_K_XL-*" \
-  --local-dir ${MODEL_DIR}/unsloth/GLM-5.2-GGUF/
-
 hf download unsloth/DeepSeek-V4-Flash-0731-GGUF \
   --include "*UD-Q8_K_XL*" \
   --local-dir ${MODEL_DIR}/unsloth/DeepSeek-V4-Flash-0731-GGUF/
